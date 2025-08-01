@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Script to install nginx, configure it to listen on port 80, and serve "Holberton School"
+
+sudo apt-get -y update
+sudo apt-get -y install nginx
+echo "Holberton School for the win!" | sudo tee /var/www/html/index.nginx-debian.html
+sudo service nginx start
