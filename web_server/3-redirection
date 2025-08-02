@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Configures Nginx to redirect /redirect_me to https://www.youtube.com/watch?v=QH2-TGUlwu4 with a 301 status
+
+sudo apt-get -y update
+sudo apt-get -y install nginx
+sudo ufw allow 'Nginx HTTP'
+echo "Holberton School for the win!" | sudo tee /var/www/html/index
+sudo sed -i '/listen 80 default_server/a rewrite ^/redirect_me https://www.youtube.com/watch?v=QH2-TGUlwu4 permanent;' /etc/nginx/sites-available/default
+sudo service nginx restart
