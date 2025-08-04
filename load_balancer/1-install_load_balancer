@@ -1,31 +1,55 @@
 #!/usr/bin/env bash
-# Install and configure HAProxy load balancer on Ubuntu 16.04
+# Installs and configures HAProxy with roundrobin load balancing between web-01 and web-02
 
-set -e
+set -euo pipefail
 
-# Update package list and install haproxy
-apt-get update
-apt-get install -y haproxy
-
-# Backup original haproxy configuration if not already backed up
-if [ ! -f /etc/haproxy/haproxy.cfg.bak ]; then
-    cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+# Update system and install HAProxy if not already installed
+if ! command -v haproxy > /dev/null; then
+    apt-get update -y
+    apt-get install -y haproxy
 fi
 
-# Write new haproxy configuration with roundrobin balancing to web servers
-cat > /etc/haproxy/haproxy.cfg <<EOF
+# Enable HAProxy service at boot
+systemctl enable haproxy
+
+# Define backend web server IPs - adjust these as per your environment
+WEB1_IP="52.91.19.144"
+WEB2_IP="13.221.66.135"
+
+# Backup existing haproxy config
+cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+
+# Write new HAProxy configuration
+cat > /etc/haproxy/haproxy.cfg << EOF
+global
+    log /dev/log    local0
+    log /dev/log    local1 notice
+    daemon
+    maxconn 256
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    retries 3
+    timeout connect 5000ms
+    timeout client  50000ms
+    timeout server  50000ms
+
 frontend http_front
     bind *:80
-    default_backend http_back
+    default_backend webservers
 
-backend http_back
+backend webservers
     balance roundrobin
-    server web01 52.91.19.144:80 check
-    server web02 13.221.66.135:80 check
+    option httpchk HEAD / HTTP/1.1\r\nHost:localhost
+    server web-01 ${WEB1_IP}:80 check
+    server web-02 ${WEB2_IP}:80 check
 EOF
 
-# Restart haproxy service to apply configuration
-systemctl restart haproxy
+# Validate HAProxy config
+haproxy -c -f /etc/haproxy/haproxy.cfg
 
-# Enable haproxy to start at boot
-systemctl enable haproxy
+# Restart HAProxy service to apply new config
+systemctl restart haproxy
