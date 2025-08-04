@@ -1,22 +1,31 @@
 #!/usr/bin/env bash
-# Installs HAProxy version 1.8 with the following configurations:
-#*    Enables management via the init script.
-#*    Distributes requests using a round-robin algorithm.
+# Install and configure HAProxy load balancer on Ubuntu 16.04
 
+set -e
+
+# Update package list and install haproxy
 apt-get update
 apt-get install -y haproxy
 
-printf %s "
-frontend hbnb-lb_front
-        bind *:80
-        mode http
-        default_backend hbnb-lb_back
-backend hbnb-lb_back
-        balance roundrobin
-        server whytecode-web-01 34.207.237.54:80 check
-        server whytecode-web-02 54.160.84.46:80 check
-" >> /etc/haproxy/haproxy.cfg
+# Backup original haproxy configuration if not already backed up
+if [ ! -f /etc/haproxy/haproxy.cfg.bak ]; then
+    cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+fi
 
-echo "ENABLED=1" >> /etc/default/haproxy
+# Write new haproxy configuration with roundrobin balancing to web servers
+cat > /etc/haproxy/haproxy.cfg <<EOF
+frontend http_front
+    bind *:80
+    default_backend http_back
 
-service haproxy start
+backend http_back
+    balance roundrobin
+    server web01 52.91.19.144:80 check
+    server web02 13.221.66.135:80 check
+EOF
+
+# Restart haproxy service to apply configuration
+systemctl restart haproxy
+
+# Enable haproxy to start at boot
+systemctl enable haproxy
