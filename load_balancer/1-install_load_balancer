@@ -1,28 +1,31 @@
 #!/usr/bin/env bash
-# Install and configure HAProxy on lb-01 server
+# Install and configure HAProxy load balancer on Ubuntu 16.04
 
-balancer="\
-frontend haproxy_balancer
+set -e
+
+# Update package list and install haproxy
+apt-get update
+apt-get install -y haproxy
+
+# Backup original haproxy configuration if not already backed up
+if [ ! -f /etc/haproxy/haproxy.cfg.bak ]; then
+    cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+fi
+
+# Write new haproxy configuration with roundrobin balancing to web servers
+cat > /etc/haproxy/haproxy.cfg <<EOF
+frontend http_front
     bind *:80
-    mode http
-    default_backend webservers
-    
-backend webservers
+    default_backend http_back
+
+backend http_back
     balance roundrobin
-    server 26071-web-01 44.210.150.159:80 check
-    server 26071-web-02 35.173.47.15:80 check
-"
-# Update packages
-apt-get -y update
-apt-get -y upgrade
+    server web01 52.91.19.144:80 check
+    server web02 13.221.66.135:80 check
+EOF
 
-# Add HAProxy PPA
-apt-get -y install software-properties-common
-add-apt-repository -y ppa:vbernat/haproxy-2.5
-apt-get -y update
+# Restart haproxy service to apply configuration
+systemctl restart haproxy
 
-# Install HAProxy
-apt-get -y install haproxy
-cp -a /etc/haproxy/haproxy.cfg{,.orig}
-echo "$balancer" >> /etc/haproxy/haproxy.cfg
-service haproxy restart
+# Enable haproxy to start at boot
+systemctl enable haproxy
