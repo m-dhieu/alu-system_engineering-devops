@@ -1,55 +1,64 @@
 #!/usr/bin/env bash
-# Installs and configures HAProxy with roundrobin load balancing between web-01 and web-02
+# Installs and configures HAproxy on lb-01 server for load balancing
 
-set -euo pipefail
+# Update package list
+apt-get update -y
 
-# Update system and install HAProxy if not already installed
-if ! command -v haproxy > /dev/null; then
-    apt-get update -y
-    apt-get install -y haproxy
-fi
+# Install HAproxy
+apt-get install haproxy -y
 
-# Enable HAProxy service at boot
-systemctl enable haproxy
+# Backup original configuration
+cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.backup
 
-# Define backend web server IPs - adjust these as per your environment
-WEB1_IP="52.91.19.144"
-WEB2_IP="13.221.66.135"
-
-# Backup existing haproxy config
-cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
-
-# Write new HAProxy configuration
-cat > /etc/haproxy/haproxy.cfg << EOF
+# Create HAproxy configuration
+cat > /etc/haproxy/haproxy.cfg << 'EOF'
 global
-    log /dev/log    local0
-    log /dev/log    local1 notice
     daemon
     maxconn 256
 
 defaults
-    log     global
-    mode    http
-    option  httplog
-    option  dontlognull
-    retries 3
+    mode http
     timeout connect 5000ms
-    timeout client  50000ms
-    timeout server  50000ms
+    timeout client 50000ms
+    timeout server 50000ms
+    option httplog
+    option dontlognull
+    retries 3
+    option redispatch
 
 frontend http_front
     bind *:80
-    default_backend webservers
+    stats uri /haproxy?stats
+    default_backend http_back
 
-backend webservers
+backend http_back
     balance roundrobin
-    option httpchk HEAD / HTTP/1.1\r\nHost:localhost
-    server web-01 ${WEB1_IP}:80 check
-    server web-02 ${WEB2_IP}:80 check
+    option httpchk GET /
+    server 6661-web-01 52.91.19.144:80 check
+    server 6661-web-02 13.221.66.135:80 check
 EOF
 
-# Validate HAProxy config
-haproxy -c -f /etc/haproxy/haproxy.cfg
+# Enable HAproxy to be started by init script
+echo "ENABLED=1" > /etc/default/haproxy
 
-# Restart HAProxy service to apply new config
+# Test HAproxy configuration
+haproxy -f /etc/haproxy/haproxy.cfg -c
+
+# Start and enable HAproxy service
+systemctl start haproxy
+systemctl enable haproxy
+
+# Restart HAproxy to apply configuration
 systemctl restart haproxy
+
+# Allow HTTP traffic through firewall (if ufw is active)
+ufw allow 80 2>/dev/null || true
+
+# Check if HAproxy is running
+systemctl status haproxy --no-pager
+
+echo "HAproxy installed and configured successfully!"
+echo "Load balancer is distributing traffic between:"
+echo "- 6661-web-01 (52.91.19.144)"
+echo "- 6661-web-02 (13.221.66.135)"
+echo "Using roundrobin algorithm"
