@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Short fix for running nginx as nginx on port 8080
-sed -i 's/^user .*/user nginx;/' /etc/nginx/nginx.conf
-sed -i 's/listen .*/listen 8080;/' /etc/nginx/sites-available/default
+# Fix Nginx user and listen on port 8080 all IPs
+
+sed -i 's/^user .*/user nginx/' /etc/nginx/nginx.conf
+sed -i 's/listen [^;]*/listen 8080/' /etc/nginx/sites-enabled/default
 service nginx restart
